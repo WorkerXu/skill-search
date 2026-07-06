@@ -69,10 +69,10 @@ if (!root) {
 root.innerHTML = `
   <main class="skillquick-shell relative flex h-full flex-col rounded-3xl border border-white/10 p-4">
     <div id="toast" class="pointer-events-none absolute left-1/2 top-4 z-40 hidden max-w-[520px] -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2 text-sm shadow-2xl"></div>
-    <section id="settingsPanel" class="absolute inset-0 z-30 hidden bg-slate-950/82 p-5 backdrop-blur-xl"></section>
+    <section id="settingsPanel" class="skillquick-settings-panel absolute inset-0 z-30 hidden bg-slate-950/82 p-5 backdrop-blur-xl"></section>
 
-    <div class="flex items-center gap-3 rounded-2xl bg-white/[0.075] px-4 py-3 ring-1 ring-white/10">
-      <span class="text-xl text-slate-300" aria-hidden="true">⌕</span>
+    <div class="skillquick-search-box flex items-center gap-3 rounded-2xl bg-white/[0.075] px-4 py-3 ring-1 ring-white/10">
+      <span class="skillquick-search-icon text-xl text-slate-300" aria-hidden="true">⌕</span>
       <input
         id="searchInput"
         class="min-w-0 flex-1 bg-transparent text-[19px] font-medium text-white outline-none placeholder:text-slate-500"
@@ -83,14 +83,14 @@ root.innerHTML = `
     </div>
 
     <div id="errorBox" class="mt-3 hidden rounded-xl border border-red-400/25 bg-red-500/12 px-3 py-2 text-sm text-red-100"></div>
-    <div id="recentRow" class="mt-3 hidden items-center gap-2 overflow-hidden"></div>
-    <div id="listHeader" class="mb-2 mt-3 flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-[0.18em] text-slate-500"></div>
+    <div id="recentRow" class="skillquick-recent-row mt-3 hidden items-center gap-2 overflow-hidden"></div>
+    <div id="listHeader" class="skillquick-list-header mb-2 mt-3 flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-[0.18em] text-slate-500"></div>
     <div id="resultsList" class="min-h-0 flex-1 overflow-y-auto pr-1"></div>
 
-    <footer class="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs text-slate-500">
+    <footer class="skillquick-footer mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs text-slate-500">
       <span id="totalSkills">共 0 个技能</span>
       <span id="shortcutText">快捷键：CommandOrControl+Shift+S</span>
-      <button id="settingsButton" type="button" class="rounded-lg px-2 py-1 text-slate-400 hover:bg-white/10 hover:text-white">
+      <button id="settingsButton" type="button" class="skillquick-footer-button rounded-lg px-2 py-1 text-slate-400 hover:bg-white/10 hover:text-white">
         ⚙ 设置
       </button>
     </footer>
@@ -481,7 +481,7 @@ function renderRecentQueries() {
   recentRow.innerHTML = `
     <span class="shrink-0 text-xs text-slate-500">最近搜索</span>
     ${state.recentQueries.slice(0, 6).map((query) => `
-      <button type="button" data-query="${escapeAttr(query)}" class="rounded-full bg-white/8 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/12 hover:text-white">
+      <button type="button" data-query="${escapeAttr(query)}" class="skillquick-query-chip rounded-full bg-white/8 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/12 hover:text-white">
         ${escapeHtml(query)}
       </button>
     `).join('')}
@@ -527,13 +527,13 @@ function renderSkillItem(skill: SkillResult, index: number) {
       : '';
 
   return `
-    <button type="button" data-skill-index="${index}" class="block w-full rounded-2xl border px-3.5 py-3 text-left transition ${activeClass}">
+    <button type="button" data-skill-index="${index}" class="skillquick-result-item ${active ? 'is-active' : ''} block w-full rounded-2xl border px-3.5 py-3 text-left transition ${activeClass}">
       <div class="flex items-center justify-between gap-3">
-        <div class="min-w-0 truncate text-[15px] font-semibold text-white">${highlight(skill.name, query)}</div>
+        <div class="skillquick-result-title min-w-0 truncate text-[15px] font-semibold text-white">${highlight(skill.name, query)}</div>
         ${usage}
       </div>
-      <p class="mt-1 line-clamp-2 text-sm leading-5 text-slate-400">${highlight(skill.shortDesc || '无描述', query)}</p>
-      <p class="mt-2 truncate font-mono text-[11px] text-slate-600">${escapeHtml(skill.skillMdPath)}</p>
+      <p class="skillquick-result-desc mt-1 line-clamp-2 text-sm leading-5 text-slate-400">${highlight(skill.shortDesc || '无描述', query)}</p>
+      <p class="skillquick-result-path mt-2 truncate font-mono text-[11px] text-slate-600">${escapeHtml(skill.skillMdPath)}</p>
     </button>
   `;
 }

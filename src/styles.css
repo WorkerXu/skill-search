@@ -38,11 +38,114 @@ input {
 }
 
 .light .skillquick-shell {
-  color: #111827;
+  color: #0f172a;
   background:
-    radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.18), transparent 30%),
-    radial-gradient(circle at 82% 20%, rgba(13, 148, 136, 0.12), transparent 30%),
-    rgba(255, 255, 255, 0.86);
+    radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.16), transparent 30%),
+    radial-gradient(circle at 82% 20%, rgba(13, 148, 136, 0.11), transparent 30%),
+    rgba(248, 250, 252, 0.96);
+  box-shadow:
+    0 26px 80px rgba(15, 23, 42, 0.22),
+    0 1px 0 rgba(255, 255, 255, 0.92) inset,
+    0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.light .skillquick-search-box {
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 0 0 1px rgba(15, 23, 42, 0.1);
+}
+
+.light .skillquick-search-icon {
+  color: #475569;
+}
+
+.light #searchInput {
+  color: #0f172a;
+}
+
+.light #searchInput::placeholder {
+  color: #64748b;
+}
+
+.light .skillquick-list-header,
+.light .skillquick-recent-row span,
+.light .skillquick-footer {
+  color: #475569;
+}
+
+.light .skillquick-query-chip {
+  color: #1e3a8a;
+  background: rgba(219, 234, 254, 0.86);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.16) inset;
+}
+
+.light .skillquick-result-item {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.light .skillquick-result-item:hover {
+  background: rgba(241, 245, 249, 0.94);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.light .skillquick-result-item.is-active {
+  background: rgba(219, 234, 254, 0.98);
+  border-color: rgba(59, 130, 246, 0.46);
+  box-shadow:
+    0 16px 36px rgba(37, 99, 235, 0.16),
+    0 0 0 1px rgba(96, 165, 250, 0.14) inset;
+}
+
+.light .skillquick-result-title {
+  color: #0f172a;
+}
+
+.light .skillquick-result-desc {
+  color: #334155;
+}
+
+.light .skillquick-result-path {
+  color: #475569;
+}
+
+.light .skillquick-footer {
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+.light .skillquick-footer-button {
+  color: #2563eb;
+}
+
+.light .skillquick-footer-button:hover {
+  color: #1d4ed8;
+  background: rgba(219, 234, 254, 0.8);
+}
+
+.light .skillquick-settings-panel {
+  background: rgba(248, 250, 252, 0.96);
+}
+
+.light .skillquick-settings-panel h2,
+.light .skillquick-settings-panel span,
+.light .skillquick-settings-panel p,
+.light .skillquick-settings-panel label {
+  color: #0f172a;
+}
+
+.light .skillquick-settings-panel input,
+.light .skillquick-settings-panel select {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+.light .skillquick-settings-panel option {
+  color: #0f172a;
+  background: #ffffff;
 }
 
 mark {
@@ -51,4 +154,3 @@ mark {
   border-radius: 4px;
   padding: 0 1px;
 }
-
