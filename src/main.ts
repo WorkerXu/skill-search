@@ -61,6 +61,7 @@ const state: AppState = {
   searchRequestId: 0,
 };
 
+const appWindow = getCurrentWindow();
 const root = document.getElementById('root');
 if (!root) {
   throw new Error('Missing #root element');
@@ -68,10 +69,13 @@ if (!root) {
 
 root.innerHTML = `
   <main class="skillquick-shell relative flex h-full flex-col rounded-3xl border border-white/10 p-4">
+    <div id="dragHandle" class="skillquick-drag-handle absolute left-4 right-4 top-2 z-20 flex h-5 cursor-grab items-center justify-center active:cursor-grabbing" title="拖动窗口">
+      <span class="h-1 w-14 rounded-full bg-white/18"></span>
+    </div>
     <div id="toast" class="pointer-events-none absolute left-1/2 top-4 z-40 hidden max-w-[520px] -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2 text-sm shadow-2xl"></div>
     <section id="settingsPanel" class="skillquick-settings-panel absolute inset-0 z-30 hidden bg-slate-950/82 p-5 backdrop-blur-xl"></section>
 
-    <div class="skillquick-search-box flex items-center gap-3 rounded-2xl bg-white/[0.075] px-4 py-3 ring-1 ring-white/10">
+    <div class="skillquick-search-box mt-3 flex items-center gap-3 rounded-2xl bg-white/[0.075] px-4 py-3 ring-1 ring-white/10">
       <span class="skillquick-search-icon text-xl text-slate-300" aria-hidden="true">⌕</span>
       <input
         id="searchInput"
@@ -108,11 +112,19 @@ const totalSkills = getElement<HTMLSpanElement>('totalSkills');
 const shortcutText = getElement<HTMLSpanElement>('shortcutText');
 const settingsButton = getElement<HTMLButtonElement>('settingsButton');
 const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+const dragHandle = getElement<HTMLDivElement>('dragHandle');
 
 let searchTimer: number | undefined;
 let toastTimer: number | undefined;
 let closeTimer: number | undefined;
 let unlisteners: UnlistenFn[] = [];
+
+dragHandle.addEventListener('mousedown', (event) => {
+  if (event.buttons === 1) {
+    event.preventDefault();
+    void appWindow.startDragging();
+  }
+});
 
 searchInput.addEventListener('input', () => {
   state.query = searchInput.value;
@@ -200,11 +212,7 @@ settingsPanel.addEventListener('click', (event) => {
   if (action === 'open-directory') void openSkillDirectory();
 });
 
-mediaQuery.addEventListener('change', () => {
-  if (state.config?.theme === 'system') {
-    applyTheme(state.config);
-  }
-});
+mediaQuery.addEventListener('change', () => applyTheme());
 
 void bootstrap();
 
@@ -239,7 +247,7 @@ async function attachTauriListeners() {
     void rescanSkills(false);
   }));
 
-  unlisteners.push(await getCurrentWindow().onFocusChanged(({ payload }) => {
+  unlisteners.push(await appWindow.onFocusChanged(({ payload }) => {
     if (!payload && !state.settingsOpen) {
       void hideAndReset();
     }
@@ -428,15 +436,15 @@ function normalizeConfig(config: AppConfig): AppConfig {
   return {
     skillDir: config.skillDir.trim(),
     shortcut: config.shortcut.trim() || 'CommandOrControl+Shift+S',
-    theme: ['system', 'dark', 'light'].includes(config.theme) ? config.theme : 'system',
+    theme: 'dark',
     fuzzySearch: Boolean(config.fuzzySearch),
     maxResults: Math.min(50, Math.max(5, Number(config.maxResults) || 30)),
   };
 }
 
-function applyTheme(config: AppConfig) {
-  const isLight = config.theme === 'light' || (config.theme === 'system' && mediaQuery.matches);
-  document.documentElement.classList.toggle('light', isLight);
+function applyTheme(_config?: AppConfig) {
+  document.documentElement.classList.remove('light');
+  document.documentElement.classList.add('dark');
 }
 
 function renderLoading() {
@@ -549,20 +557,20 @@ function renderSettings() {
 
   settingsPanel.classList.remove('hidden');
   settingsPanel.innerHTML = `
-    <div class="flex items-center justify-between">
+    <div class="skillquick-settings-drag flex cursor-grab items-center justify-between active:cursor-grabbing">
       <div>
         <h2 class="text-lg font-semibold text-white">设置</h2>
         <p class="text-xs text-slate-400">配置技能目录、快捷键和搜索行为。修改后点击保存才会重新扫描。</p>
       </div>
-      <button type="button" data-action="close-settings" class="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white" aria-label="关闭设置">×</button>
+      <button type="button" data-action="close-settings" class="skillquick-icon-button rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white" aria-label="关闭设置">×</button>
     </div>
 
-    <div class="mt-5 space-y-4">
+    <div class="skillquick-settings-body mt-5 space-y-4 overflow-y-auto pr-1">
       <label class="block">
         <span class="text-sm font-medium text-slate-200">skill-manage 目录</span>
         <div class="mt-2 flex gap-2">
           <input name="skillDir" value="${escapeAttr(config.skillDir)}" class="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/8 px-3 py-2 font-mono text-xs text-white outline-none focus:border-blue-300/60" />
-          <button type="button" data-action="choose-directory" class="rounded-lg bg-white/10 px-3 text-sm text-white hover:bg-white/15">选择</button>
+          <button type="button" data-action="choose-directory" class="skillquick-secondary-button rounded-lg bg-white/10 px-3 text-sm text-white hover:bg-white/15">选择</button>
         </div>
       </label>
 
@@ -573,14 +581,12 @@ function renderSettings() {
       </label>
 
       <div class="grid grid-cols-2 gap-3">
-        <label class="block">
+        <div class="block">
           <span class="text-sm font-medium text-slate-200">主题</span>
-          <select name="theme" class="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white outline-none">
-            <option value="system" ${config.theme === 'system' ? 'selected' : ''}>跟随系统</option>
-            <option value="dark" ${config.theme === 'dark' ? 'selected' : ''}>深色</option>
-            <option value="light" ${config.theme === 'light' ? 'selected' : ''}>浅色</option>
-          </select>
-        </label>
+          <div class="mt-2 rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white">
+            深色主题
+          </div>
+        </div>
 
         <label class="block">
           <span class="text-sm font-medium text-slate-200">最大结果数</span>
@@ -594,16 +600,31 @@ function renderSettings() {
       </label>
 
       <div class="grid grid-cols-3 gap-2 pt-2">
-        <button type="button" data-action="rescan" class="rounded-lg bg-blue-500/18 px-3 py-2 text-sm text-blue-100 hover:bg-blue-500/26">重新扫描</button>
-        <button type="button" data-action="clear-history" class="rounded-lg bg-red-500/16 px-3 py-2 text-sm text-red-100 hover:bg-red-500/24">清除历史</button>
-        <button type="button" data-action="open-directory" class="rounded-lg bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/15">打开目录</button>
+        <button type="button" data-action="rescan" class="skillquick-secondary-button rounded-lg bg-blue-500/18 px-3 py-2 text-sm text-blue-100 hover:bg-blue-500/26">重新扫描</button>
+        <button type="button" data-action="clear-history" class="skillquick-danger-button rounded-lg bg-red-500/16 px-3 py-2 text-sm text-red-100 hover:bg-red-500/24">清除历史</button>
+        <button type="button" data-action="open-directory" class="skillquick-secondary-button rounded-lg bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/15">打开目录</button>
       </div>
+    </div>
 
-      <button type="button" data-action="save-settings" class="w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400">
+    <div class="skillquick-settings-actions mt-4 grid grid-cols-[1fr_1.7fr] gap-2 border-t border-white/10 pt-3">
+      <button type="button" data-action="close-settings" class="skillquick-secondary-button rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/15">
+        取消
+      </button>
+      <button type="button" data-action="save-settings" class="skillquick-save-button rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400">
         保存设置
       </button>
     </div>
   `;
+
+  settingsPanel.querySelector('.skillquick-settings-drag')?.addEventListener('mousedown', (event) => {
+    const mouseEvent = event as MouseEvent;
+    const target = event.target as HTMLElement;
+    if (target.closest('button, input, select, textarea')) return;
+    if (mouseEvent.buttons === 1) {
+      mouseEvent.preventDefault();
+      void appWindow.startDragging();
+    }
+  });
 }
 
 function showToast(text: string, type: ToastType, duration = 1500) {

@@ -10,6 +10,14 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html.light {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
 html,
 body,
 #root {
@@ -27,14 +35,115 @@ input {
 
 .skillquick-shell {
   background:
-    radial-gradient(circle at 18% 0%, rgba(72, 121, 255, 0.24), transparent 28%),
-    radial-gradient(circle at 82% 20%, rgba(20, 184, 166, 0.16), transparent 30%),
-    rgba(11, 15, 24, 0.82);
+    radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.34), transparent 30%),
+    radial-gradient(circle at 82% 18%, rgba(20, 184, 166, 0.2), transparent 32%),
+    linear-gradient(145deg, rgba(7, 10, 18, 0.98), rgba(15, 23, 42, 0.96));
   backdrop-filter: blur(28px) saturate(1.35);
   -webkit-backdrop-filter: blur(28px) saturate(1.35);
   box-shadow:
-    0 26px 80px rgba(0, 0, 0, 0.46),
-    0 1px 0 rgba(255, 255, 255, 0.14) inset;
+    0 28px 90px rgba(0, 0, 0, 0.58),
+    0 1px 0 rgba(255, 255, 255, 0.16) inset,
+    0 0 0 1px rgba(148, 163, 184, 0.16);
+}
+
+.skillquick-drag-handle span {
+  transition: background 0.16s ease, width 0.16s ease;
+}
+
+.skillquick-drag-handle:hover span {
+  width: 72px;
+  background: rgba(148, 163, 184, 0.48);
+}
+
+.skillquick-search-box {
+  background: rgba(15, 23, 42, 0.72);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 0 0 1px rgba(148, 163, 184, 0.14);
+}
+
+.skillquick-result-item {
+  background: rgba(15, 23, 42, 0.74);
+  border-color: rgba(148, 163, 184, 0.16);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.18);
+}
+
+.skillquick-result-item:hover {
+  background: rgba(30, 41, 59, 0.86);
+  border-color: rgba(96, 165, 250, 0.25);
+}
+
+.skillquick-result-item.is-active {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.38), rgba(14, 165, 233, 0.2));
+  border-color: rgba(147, 197, 253, 0.65);
+  box-shadow:
+    0 18px 46px rgba(37, 99, 235, 0.24),
+    0 0 0 1px rgba(191, 219, 254, 0.14) inset;
+}
+
+.skillquick-result-title {
+  color: #f8fafc;
+}
+
+.skillquick-result-desc {
+  color: #cbd5e1;
+}
+
+.skillquick-result-path {
+  color: #94a3b8;
+}
+
+.skillquick-settings-panel {
+  display: none;
+  flex-direction: column;
+  color: #f8fafc;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.18), transparent 32%),
+    linear-gradient(145deg, rgba(7, 10, 18, 0.98), rgba(15, 23, 42, 0.97));
+}
+
+.skillquick-settings-panel:not(.hidden) {
+  display: flex;
+}
+
+.skillquick-settings-body {
+  min-height: 0;
+  flex: 1;
+}
+
+.skillquick-settings-panel input,
+.skillquick-settings-panel select {
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.82);
+  border-color: rgba(148, 163, 184, 0.22);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+.skillquick-settings-panel input:focus,
+.skillquick-settings-panel select:focus {
+  border-color: rgba(96, 165, 250, 0.72);
+}
+
+.skillquick-secondary-button {
+  color: #dbeafe;
+  background: rgba(30, 41, 59, 0.9);
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.14) inset;
+}
+
+.skillquick-secondary-button:hover {
+  background: rgba(51, 65, 85, 0.95);
+}
+
+.skillquick-danger-button {
+  color: #fecdd3;
+  background: rgba(127, 29, 29, 0.45);
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.16) inset;
+}
+
+.skillquick-save-button {
+  box-shadow:
+    0 14px 32px rgba(16, 185, 129, 0.26),
+    0 0 0 1px rgba(167, 243, 208, 0.18) inset;
 }
 
 .light .skillquick-shell {

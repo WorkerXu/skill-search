@@ -31,7 +31,7 @@ impl Default for AppConfig {
         Self {
             skill_dir: String::new(),
             shortcut: "CommandOrControl+Shift+S".to_string(),
-            theme: "system".to_string(),
+            theme: "dark".to_string(),
             fuzzy_search: true,
             max_results: DEFAULT_MAX_RESULTS,
         }
@@ -144,9 +144,7 @@ pub fn update_config(
 ) -> Result<BootstrapState, String> {
     let mut next_config = config;
     next_config.max_results = next_config.max_results.clamp(5, 50);
-    if !matches!(next_config.theme.as_str(), "system" | "dark" | "light") {
-        next_config.theme = "system".to_string();
-    }
+    next_config.theme = "dark".to_string();
 
     let skills = skill_parser::scan_skills(&next_config.skill_dir)?;
     start_watcher_internal(&app, &state, &next_config.skill_dir)?;
@@ -244,6 +242,7 @@ pub fn initialize_state(app: &AppHandle, state: &State<'_, AppState>) -> Result<
             .into_owned();
     }
     persisted.config.max_results = persisted.config.max_results.clamp(5, 50);
+    persisted.config.theme = "dark".to_string();
     prune_history(&mut persisted.history);
 
     let skills = skill_parser::scan_skills(&persisted.config.skill_dir)?;
