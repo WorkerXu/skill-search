@@ -68,14 +68,11 @@ if (!root) {
 }
 
 root.innerHTML = `
-  <main class="skillquick-shell relative flex h-full flex-col rounded-3xl border border-white/10 p-4">
-    <div id="dragHandle" class="skillquick-drag-handle absolute left-4 right-4 top-2 z-20 flex h-5 cursor-grab items-center justify-center active:cursor-grabbing" title="拖动窗口">
-      <span class="h-1 w-14 rounded-full bg-white/18"></span>
-    </div>
+  <main id="appShell" class="skillquick-shell relative flex h-full flex-col rounded-3xl border border-white/10 p-4">
     <div id="toast" class="pointer-events-none absolute left-1/2 top-4 z-40 hidden max-w-[520px] -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2 text-sm shadow-2xl"></div>
     <section id="settingsPanel" class="skillquick-settings-panel absolute inset-0 z-30 hidden bg-slate-950/82 p-5 backdrop-blur-xl"></section>
 
-    <div class="skillquick-search-box mt-3 flex items-center gap-3 rounded-2xl bg-white/[0.075] px-4 py-3 ring-1 ring-white/10">
+    <div class="skillquick-search-box flex items-center gap-3 rounded-2xl bg-white/[0.075] px-4 py-3 ring-1 ring-white/10">
       <span class="skillquick-search-icon text-xl text-slate-300" aria-hidden="true">⌕</span>
       <input
         id="searchInput"
@@ -104,6 +101,7 @@ root.innerHTML = `
 const searchInput = getElement<HTMLInputElement>('searchInput');
 const toastBox = getElement<HTMLDivElement>('toast');
 const settingsPanel = getElement<HTMLElement>('settingsPanel');
+const appShell = getElement<HTMLElement>('appShell');
 const errorBox = getElement<HTMLDivElement>('errorBox');
 const recentRow = getElement<HTMLDivElement>('recentRow');
 const listHeader = getElement<HTMLDivElement>('listHeader');
@@ -112,18 +110,16 @@ const totalSkills = getElement<HTMLSpanElement>('totalSkills');
 const shortcutText = getElement<HTMLSpanElement>('shortcutText');
 const settingsButton = getElement<HTMLButtonElement>('settingsButton');
 const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
-const dragHandle = getElement<HTMLDivElement>('dragHandle');
 
 let searchTimer: number | undefined;
 let toastTimer: number | undefined;
 let closeTimer: number | undefined;
 let unlisteners: UnlistenFn[] = [];
 
-dragHandle.addEventListener('mousedown', (event) => {
-  if (event.buttons === 1) {
-    event.preventDefault();
-    void appWindow.startDragging();
-  }
+appShell.addEventListener('mousedown', (event) => {
+  if (event.buttons !== 1 || !shouldDragWindow(event.target)) return;
+  event.preventDefault();
+  void appWindow.startDragging();
 });
 
 searchInput.addEventListener('input', () => {
@@ -688,4 +684,19 @@ function formatError(error: unknown) {
     return error.message;
   }
   return String(error);
+}
+
+function shouldDragWindow(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return !target.closest([
+    'button',
+    'input',
+    'select',
+    'textarea',
+    'a',
+    '[data-action]',
+    '[data-query]',
+    '[data-skill-index]',
+    '#resultsList',
+  ].join(','));
 }

@@ -46,15 +46,6 @@ input {
     0 0 0 1px rgba(148, 163, 184, 0.16);
 }
 
-.skillquick-drag-handle span {
-  transition: background 0.16s ease, width 0.16s ease;
-}
-
-.skillquick-drag-handle:hover span {
-  width: 72px;
-  background: rgba(148, 163, 184, 0.48);
-}
-
 .skillquick-search-box {
   background: rgba(15, 23, 42, 0.72);
   box-shadow:
