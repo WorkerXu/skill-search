@@ -68,7 +68,7 @@ if (!root) {
 }
 
 root.innerHTML = `
-  <main id="appShell" class="skillquick-shell relative flex h-full flex-col rounded-3xl border border-white/10 p-4">
+  <main id="appShell" data-tauri-drag-region="deep" class="skillquick-shell relative flex h-full flex-col rounded-3xl border border-white/10 p-4">
     <div id="toast" class="pointer-events-none absolute left-1/2 top-4 z-40 hidden max-w-[520px] -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2 text-sm shadow-2xl"></div>
     <section id="settingsPanel" class="skillquick-settings-panel absolute inset-0 z-30 hidden bg-slate-950/82 p-5 backdrop-blur-xl"></section>
 
@@ -115,11 +115,47 @@ let searchTimer: number | undefined;
 let toastTimer: number | undefined;
 let closeTimer: number | undefined;
 let unlisteners: UnlistenFn[] = [];
+let dragCandidate: { x: number; y: number; target: HTMLElement } | null = null;
+let suppressNextClick = false;
 
 appShell.addEventListener('mousedown', (event) => {
-  if (event.buttons !== 1 || !shouldDragWindow(event.target)) return;
+  if (event.button !== 0 || !canStartWindowDrag(event.target)) return;
+
+  const target = event.target as HTMLElement;
+  if (target.closest('[data-skill-index]')) {
+    dragCandidate = { x: event.clientX, y: event.clientY, target };
+    return;
+  }
+
   event.preventDefault();
-  void appWindow.startDragging();
+  event.stopPropagation();
+  void startWindowDrag();
+});
+
+appShell.addEventListener('mousemove', (event) => {
+  if (!dragCandidate || event.buttons !== 1) return;
+  const distance = Math.hypot(event.clientX - dragCandidate.x, event.clientY - dragCandidate.y);
+  if (distance < 6) return;
+
+  event.preventDefault();
+  suppressNextClick = true;
+  dragCandidate = null;
+  void startWindowDrag();
+});
+
+appShell.addEventListener('mouseup', () => {
+  dragCandidate = null;
+});
+
+appShell.addEventListener('click', (event) => {
+  if (!suppressNextClick) return;
+  suppressNextClick = false;
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+
+window.addEventListener('blur', () => {
+  dragCandidate = null;
 });
 
 searchInput.addEventListener('input', () => {
@@ -553,7 +589,7 @@ function renderSettings() {
 
   settingsPanel.classList.remove('hidden');
   settingsPanel.innerHTML = `
-    <div class="skillquick-settings-drag flex cursor-grab items-center justify-between active:cursor-grabbing">
+    <div class="flex items-center justify-between">
       <div>
         <h2 class="text-lg font-semibold text-white">设置</h2>
         <p class="text-xs text-slate-400">配置技能目录、快捷键和搜索行为。修改后点击保存才会重新扫描。</p>
@@ -612,15 +648,6 @@ function renderSettings() {
     </div>
   `;
 
-  settingsPanel.querySelector('.skillquick-settings-drag')?.addEventListener('mousedown', (event) => {
-    const mouseEvent = event as MouseEvent;
-    const target = event.target as HTMLElement;
-    if (target.closest('button, input, select, textarea')) return;
-    if (mouseEvent.buttons === 1) {
-      mouseEvent.preventDefault();
-      void appWindow.startDragging();
-    }
-  });
 }
 
 function showToast(text: string, type: ToastType, duration = 1500) {
@@ -686,17 +713,30 @@ function formatError(error: unknown) {
   return String(error);
 }
 
-function shouldDragWindow(target: EventTarget | null) {
+async function startWindowDrag() {
+  try {
+    await appWindow.startDragging();
+    return;
+  } catch (error) {
+    console.error('[SkillQuick] startDragging failed', error);
+  }
+
+  try {
+    await invoke('start_search_window_drag');
+  } catch (error) {
+    console.error('[SkillQuick] native start_search_window_drag failed', error);
+  }
+}
+
+function canStartWindowDrag(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
   return !target.closest([
-    'button',
     'input',
     'select',
     'textarea',
     'a',
     '[data-action]',
     '[data-query]',
-    '[data-skill-index]',
-    '#resultsList',
+    '#settingsButton',
   ].join(','));
 }

@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"SkillQuick search window permissions","local":true,"windows":["search"],"permissions":["core:default","dialog:allow-open"]}}
+{"default":{"identifier":"default","description":"SkillQuick search window permissions","local":true,"windows":["search"],"permissions":["core:default","core:window:allow-start-dragging","dialog:allow-open"]}}

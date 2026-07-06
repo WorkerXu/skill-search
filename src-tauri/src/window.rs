@@ -37,6 +37,7 @@ fn get_or_create_search_window(app: &AppHandle) -> Result<WebviewWindow, String>
     .resizable(false)
     .decorations(false)
     .transparent(true)
+    .accept_first_mouse(true)
     .always_on_top(true)
     .skip_taskbar(true)
     .visible(false)

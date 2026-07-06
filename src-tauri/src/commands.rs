@@ -8,7 +8,7 @@ use std::{
     process::Command,
     sync::Mutex,
 };
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, State, Window};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
@@ -191,6 +191,13 @@ pub fn show_search_window(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn hide_search_window(app: AppHandle) -> Result<(), String> {
     window::hide_search_window(&app)
+}
+
+#[tauri::command]
+pub fn start_search_window_drag(window: Window) -> Result<(), String> {
+    window
+        .start_dragging()
+        .map_err(|err| format!("启动窗口拖动失败：{err}"))
 }
 
 #[tauri::command]

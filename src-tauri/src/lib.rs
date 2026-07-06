@@ -34,6 +34,7 @@ pub fn run() {
             commands::update_global_shortcut,
             commands::show_search_window,
             commands::hide_search_window,
+            commands::start_search_window_drag,
             commands::open_path
         ])
         .setup(|app| {
