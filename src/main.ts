@@ -46,6 +46,7 @@ interface AppState {
   settingsOpen: boolean;
   error: string | null;
   searchRequestId: number;
+  copiedPath: string | null;
 }
 
 const state: AppState = {
@@ -59,6 +60,7 @@ const state: AppState = {
   settingsOpen: false,
   error: null,
   searchRequestId: 0,
+  copiedPath: null,
 };
 
 const appWindow = getCurrentWindow();
@@ -68,31 +70,37 @@ if (!root) {
 }
 
 root.innerHTML = `
-  <main id="appShell" data-tauri-drag-region="deep" class="skillquick-shell relative flex h-full flex-col rounded-3xl border border-white/10 p-4">
-    <div id="toast" class="pointer-events-none absolute left-1/2 top-4 z-40 hidden max-w-[520px] -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2 text-sm shadow-2xl"></div>
-    <section id="settingsPanel" class="skillquick-settings-panel absolute inset-0 z-30 hidden bg-slate-950/82 p-5 backdrop-blur-xl"></section>
+  <main id="appShell" data-tauri-drag-region="deep" class="skillquick-shell relative flex h-full select-none flex-col overflow-hidden rounded-[24px] border p-3">
+    <div id="toast" class="skillquick-toast pointer-events-none absolute left-1/2 top-4 z-40 hidden max-w-[560px] -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2 text-sm"></div>
+    <section id="settingsPanel" class="skillquick-settings-panel absolute inset-0 z-30 hidden p-5"></section>
 
-    <div class="skillquick-search-box flex items-center gap-3 rounded-2xl bg-white/[0.075] px-4 py-3 ring-1 ring-white/10">
-      <span class="skillquick-search-icon text-xl text-slate-300" aria-hidden="true">⌕</span>
+    <div class="skillquick-search-box flex h-[52px] items-center gap-3 rounded-2xl px-4">
+      <svg class="skillquick-search-icon h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="m21 21-4.35-4.35m2.35-5.15a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
       <input
         id="searchInput"
-        class="min-w-0 flex-1 bg-transparent text-[19px] font-medium text-white outline-none placeholder:text-slate-500"
+        class="skillquick-search-input min-w-0 flex-1 bg-transparent text-[18px] font-semibold outline-none"
         autocomplete="off"
         spellcheck="false"
         placeholder="搜索技能名称或描述..."
       />
     </div>
 
-    <div id="errorBox" class="mt-3 hidden rounded-xl border border-red-400/25 bg-red-500/12 px-3 py-2 text-sm text-red-100"></div>
+    <div id="errorBox" class="skillquick-error mt-3 hidden rounded-xl px-3 py-2 text-sm"></div>
     <div id="recentRow" class="skillquick-recent-row mt-3 hidden items-center gap-2 overflow-hidden"></div>
-    <div id="listHeader" class="skillquick-list-header mb-2 mt-3 flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-[0.18em] text-slate-500"></div>
-    <div id="resultsList" class="min-h-0 flex-1 overflow-y-auto pr-1"></div>
+    <div id="listHeader" class="skillquick-list-header mb-2 mt-4 flex items-center gap-3 px-1 text-xs font-semibold uppercase tracking-[0.18em]"></div>
+    <div id="resultsList" class="skillquick-results min-h-0 flex-1 overflow-y-auto pr-1"></div>
 
-    <footer class="skillquick-footer mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs text-slate-500">
-      <span id="totalSkills">共 0 个技能</span>
-      <span id="shortcutText">快捷键：CommandOrControl+Shift+S</span>
-      <button id="settingsButton" type="button" class="skillquick-footer-button rounded-lg px-2 py-1 text-slate-400 hover:bg-white/10 hover:text-white">
-        ⚙ 设置
+    <footer class="skillquick-footer mt-3 flex h-10 items-center justify-between gap-3 border-t px-1 pt-3 text-xs">
+      <span id="totalSkills" class="skillquick-footer-count">共 0 个技能</span>
+      <span id="shortcutText" class="skillquick-shortcut ml-auto"></span>
+      <button id="settingsButton" type="button" class="skillquick-footer-button flex items-center gap-1.5 rounded-xl px-2.5 py-1.5" aria-label="打开设置">
+        <svg class="h-4 w-4 transition-transform duration-200" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z" stroke="currentColor" stroke-width="1.7"/>
+          <path d="M19.14 13.5a7.8 7.8 0 0 0 .06-1.5l2.02-1.54-1.9-3.3-2.38.95a7.77 7.77 0 0 0-1.3-.75L15.3 4.8h-3.8l-.36 2.56c-.46.2-.9.45-1.3.75l-2.38-.95-1.9 3.3L7.58 12a7.8 7.8 0 0 0 .06 1.5l-2.08 1.6 1.9 3.3 2.45-.98c.38.27.8.5 1.23.68l.36 2.6h3.8l.36-2.6c.44-.18.85-.41 1.23-.68l2.45.98 1.9-3.3-2.08-1.6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+        </svg>
+        <span>设置</span>
       </button>
     </footer>
   </main>
@@ -310,20 +318,25 @@ async function performSearch() {
 
 async function selectSkill(skill: SkillResult) {
   try {
+    state.copiedPath = skill.skillMdPath;
+    renderResults();
     await invoke<string>('select_skill', {
       request: {
         query: state.query,
         skillMdPath: skill.skillMdPath,
       },
     });
-    showToast(`已复制：${skill.skillMdPath}`, 'success');
-    await performSearch();
+    showToast(`已复制：${skill.skillMdPath}`, 'success', 500);
 
     window.clearTimeout(closeTimer);
     closeTimer = window.setTimeout(() => {
       void hideAndReset();
-    }, 1500);
+    }, 500);
+
+    await performSearch();
   } catch (error) {
+    state.copiedPath = null;
+    renderResults();
     showToast(`复制失败：${formatError(error)}`, 'error', 2600);
   }
 }
@@ -339,6 +352,7 @@ async function hideAndReset() {
   state.selectedIndex = 0;
   state.settingsOpen = false;
   state.settingsDraft = null;
+  state.copiedPath = null;
   searchInput.value = '';
   renderAll();
   void performSearch();
@@ -481,8 +495,10 @@ function applyTheme(_config?: AppConfig) {
 
 function renderLoading() {
   resultsList.innerHTML = `
-    <div class="flex h-full items-center justify-center rounded-2xl border border-white/10 text-sm text-slate-400">
-      正在启动 SkillQuick...
+    <div class="skillquick-empty-state flex h-full flex-col items-center justify-center rounded-2xl text-center">
+      <div class="skillquick-empty-icon mb-3">⌘</div>
+      <div class="text-sm font-medium">正在启动 SkillQuick...</div>
+      <p class="mt-1 text-xs">正在扫描本地技能目录</p>
     </div>
   `;
 }
@@ -519,9 +535,9 @@ function renderRecentQueries() {
   recentRow.classList.remove('hidden');
   recentRow.classList.add('flex');
   recentRow.innerHTML = `
-    <span class="shrink-0 text-xs text-slate-500">最近搜索</span>
+    <span class="shrink-0 text-xs font-medium">最近搜索</span>
     ${state.recentQueries.slice(0, 6).map((query) => `
-      <button type="button" data-query="${escapeAttr(query)}" class="skillquick-query-chip rounded-full bg-white/8 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/12 hover:text-white">
+      <button type="button" data-query="${escapeAttr(query)}" class="skillquick-query-chip rounded-full px-2.5 py-1 text-xs transition duration-150">
         ${escapeHtml(query)}
       </button>
     `).join('')}
@@ -530,22 +546,28 @@ function renderRecentQueries() {
 
 function renderHeader() {
   listHeader.innerHTML = state.query.trim()
-    ? `<span aria-hidden="true">⌁</span><span>搜索结果</span>`
-    : `<span aria-hidden="true">✦</span><span>热门技能</span>`;
+    ? `<span class="skillquick-section-icon" aria-hidden="true">⌁</span><span>搜索结果</span><span class="skillquick-section-line"></span>`
+    : `<span class="skillquick-section-icon" aria-hidden="true">🔥</span><span>热门技能</span><span class="skillquick-section-line"></span>`;
 }
 
 function renderResults() {
   if (state.results.length === 0) {
     resultsList.innerHTML = `
-      <div class="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/10 text-sm text-slate-500">
-        未找到匹配的 skill
+      <div class="skillquick-empty-state flex h-full flex-col items-center justify-center rounded-2xl text-center">
+        <div class="skillquick-empty-icon mb-3">
+          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m21 21-4.35-4.35m2.35-5.15a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="text-sm font-semibold">没有找到匹配的技能</div>
+        <p class="mt-1 max-w-[340px] text-xs">换个关键词试试，或到设置里重新扫描 skill-manage 目录。</p>
       </div>
     `;
     return;
   }
 
   resultsList.innerHTML = `
-    <div class="space-y-2">
+    <div class="skillquick-result-stack space-y-2">
       ${state.results.map((skill, index) => renderSkillItem(skill, index)).join('')}
     </div>
   `;
@@ -556,31 +578,51 @@ function renderResults() {
 
 function renderSkillItem(skill: SkillResult, index: number) {
   const active = index === state.selectedIndex;
-  const activeClass = active
-    ? 'border-blue-300/45 bg-blue-400/16 shadow-lg shadow-blue-950/20'
-    : 'border-white/8 bg-white/[0.045] hover:border-white/14 hover:bg-white/[0.075]';
+  const copied = state.copiedPath === skill.skillMdPath;
   const query = state.query.trim();
   const usage = skill.usageCount > 0
-    ? `<span class="rounded-full bg-emerald-400/16 px-2 py-0.5 text-[11px] text-emerald-100">已选 ${skill.usageCount} 次</span>`
+    ? `<span class="skillquick-usage-badge rounded-full px-2 py-0.5 text-[11px]">已选 ${skill.usageCount} 次</span>`
     : skill.globalUsageCount > 0 && !query
-      ? `<span class="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">全局 ${skill.globalUsageCount} 次</span>`
+      ? `<span class="skillquick-global-badge rounded-full px-2 py-0.5 text-[11px]">全局 ${skill.globalUsageCount} 次</span>`
       : '';
 
   return `
-    <button type="button" data-skill-index="${index}" class="skillquick-result-item ${active ? 'is-active' : ''} block w-full rounded-2xl border px-3.5 py-3 text-left transition ${activeClass}">
-      <div class="flex items-center justify-between gap-3">
-        <div class="skillquick-result-title min-w-0 truncate text-[15px] font-semibold text-white">${highlight(skill.name, query)}</div>
-        ${usage}
+    <button type="button" data-skill-index="${index}" class="skillquick-result-item group ${active ? 'is-active' : ''} ${copied ? 'is-copied' : ''} relative block w-full rounded-2xl border px-4 py-3.5 text-left transition-all duration-150" title="${escapeAttr(skill.skillMdPath)}">
+      <span class="skillquick-result-accent absolute left-3 top-3.5 bottom-3.5 w-[3px] rounded-full" aria-hidden="true"></span>
+      <div class="pl-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="skillquick-result-title min-w-0 truncate text-base font-semibold">${highlight(skill.name, query)}</div>
+          ${usage}
+        </div>
+        <p class="skillquick-result-desc mt-1 line-clamp-2 text-sm leading-5">${highlight(skill.shortDesc || '无描述', query)}</p>
+        <p class="skillquick-result-path mt-2 truncate font-mono text-[10px] leading-4" title="${escapeAttr(skill.skillMdPath)}">${escapeHtml(skill.skillMdPath)}</p>
       </div>
-      <p class="skillquick-result-desc mt-1 line-clamp-2 text-sm leading-5 text-slate-400">${highlight(skill.shortDesc || '无描述', query)}</p>
-      <p class="skillquick-result-path mt-2 truncate font-mono text-[11px] text-slate-600">${escapeHtml(skill.skillMdPath)}</p>
     </button>
   `;
 }
 
 function renderFooter() {
   totalSkills.textContent = `共 ${state.totalSkills} 个技能`;
-  shortcutText.textContent = `快捷键：${state.config?.shortcut ?? 'CommandOrControl+Shift+S'}`;
+  shortcutText.innerHTML = renderShortcutKeys(state.config?.shortcut ?? 'CommandOrControl+Shift+S');
+}
+
+function renderShortcutKeys(shortcut: string) {
+  const keys = shortcut
+    .split('+')
+    .map((key) => key.trim())
+    .filter(Boolean)
+    .map((key) => key
+      .replace(/^CommandOrControl$/i, '⌘')
+      .replace(/^Command$/i, '⌘')
+      .replace(/^Control$/i, '⌃')
+      .replace(/^Option$/i, '⌥')
+      .replace(/^Alt$/i, '⌥')
+      .replace(/^Shift$/i, '⇧'));
+
+  return [
+    '<span class="skillquick-shortcut-label">快捷键</span>',
+    ...keys.map((key) => `<kbd>${escapeHtml(key)}</kbd>`),
+  ].join('');
 }
 
 function renderSettings() {
@@ -589,60 +631,64 @@ function renderSettings() {
 
   settingsPanel.classList.remove('hidden');
   settingsPanel.innerHTML = `
-    <div class="flex items-center justify-between">
+    <div class="skillquick-settings-head flex items-start justify-between gap-4">
       <div>
-        <h2 class="text-lg font-semibold text-white">设置</h2>
-        <p class="text-xs text-slate-400">配置技能目录、快捷键和搜索行为。修改后点击保存才会重新扫描。</p>
+        <h2 class="text-lg font-semibold">设置</h2>
+        <p class="mt-1 text-xs">配置技能目录、快捷键和搜索行为。修改后点击保存才会重新扫描。</p>
       </div>
-      <button type="button" data-action="close-settings" class="skillquick-icon-button rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white" aria-label="关闭设置">×</button>
+      <button type="button" data-action="close-settings" class="skillquick-icon-button rounded-xl p-2" aria-label="关闭设置">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
 
     <div class="skillquick-settings-body mt-5 space-y-4 overflow-y-auto pr-1">
-      <label class="block">
-        <span class="text-sm font-medium text-slate-200">skill-manage 目录</span>
+      <label class="skillquick-setting-field block">
+        <span>skill-manage 目录</span>
         <div class="mt-2 flex gap-2">
-          <input name="skillDir" value="${escapeAttr(config.skillDir)}" class="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/8 px-3 py-2 font-mono text-xs text-white outline-none focus:border-blue-300/60" />
-          <button type="button" data-action="choose-directory" class="skillquick-secondary-button rounded-lg bg-white/10 px-3 text-sm text-white hover:bg-white/15">选择</button>
+          <input name="skillDir" value="${escapeAttr(config.skillDir)}" class="min-w-0 flex-1 rounded-xl border px-3 py-2 font-mono text-xs outline-none" />
+          <button type="button" data-action="choose-directory" class="skillquick-secondary-button rounded-xl px-3 text-sm">选择</button>
         </div>
       </label>
 
-      <label class="block">
-        <span class="text-sm font-medium text-slate-200">全局快捷键</span>
-        <input name="shortcut" value="${escapeAttr(config.shortcut)}" placeholder="CommandOrControl+Shift+S" class="mt-2 w-full rounded-lg border border-white/10 bg-white/8 px-3 py-2 font-mono text-sm text-white outline-none focus:border-blue-300/60" />
-        <p class="mt-1 text-xs text-slate-500">格式示例：CommandOrControl+Shift+S。保存后会重新注册。</p>
+      <label class="skillquick-setting-field block">
+        <span>全局快捷键</span>
+        <input name="shortcut" value="${escapeAttr(config.shortcut)}" placeholder="CommandOrControl+Shift+S" class="mt-2 w-full rounded-xl border px-3 py-2 font-mono text-sm outline-none" />
+        <p class="mt-1 text-xs">格式示例：CommandOrControl+Shift+S。保存后会重新注册。</p>
       </label>
 
       <div class="grid grid-cols-2 gap-3">
-        <div class="block">
-          <span class="text-sm font-medium text-slate-200">主题</span>
-          <div class="mt-2 rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white">
+        <div class="skillquick-setting-field block">
+          <span>主题</span>
+          <div class="skillquick-setting-static mt-2 rounded-xl border px-3 py-2 text-sm">
             深色主题
           </div>
         </div>
 
-        <label class="block">
-          <span class="text-sm font-medium text-slate-200">最大结果数</span>
-          <input name="maxResults" type="number" min="5" max="50" value="${config.maxResults}" class="mt-2 w-full rounded-lg border border-white/10 bg-white/8 px-3 py-2 text-sm text-white outline-none" />
+        <label class="skillquick-setting-field block">
+          <span>最大结果数</span>
+          <input name="maxResults" type="number" min="5" max="50" value="${config.maxResults}" class="mt-2 w-full rounded-xl border px-3 py-2 text-sm outline-none" />
         </label>
       </div>
 
-      <label class="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.045] px-3 py-2">
-        <span class="text-sm text-slate-200">启用模糊搜索</span>
-        <input name="fuzzySearch" type="checkbox" ${config.fuzzySearch ? 'checked' : ''} class="h-4 w-4 accent-blue-400" />
+      <label class="skillquick-toggle-row flex items-center justify-between rounded-xl border px-3 py-2.5">
+        <span class="text-sm">启用模糊搜索</span>
+        <input name="fuzzySearch" type="checkbox" ${config.fuzzySearch ? 'checked' : ''} class="h-4 w-4" />
       </label>
 
       <div class="grid grid-cols-3 gap-2 pt-2">
-        <button type="button" data-action="rescan" class="skillquick-secondary-button rounded-lg bg-blue-500/18 px-3 py-2 text-sm text-blue-100 hover:bg-blue-500/26">重新扫描</button>
-        <button type="button" data-action="clear-history" class="skillquick-danger-button rounded-lg bg-red-500/16 px-3 py-2 text-sm text-red-100 hover:bg-red-500/24">清除历史</button>
-        <button type="button" data-action="open-directory" class="skillquick-secondary-button rounded-lg bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/15">打开目录</button>
+        <button type="button" data-action="rescan" class="skillquick-secondary-button rounded-xl px-3 py-2 text-sm">重新扫描</button>
+        <button type="button" data-action="clear-history" class="skillquick-danger-button rounded-xl px-3 py-2 text-sm">清除历史</button>
+        <button type="button" data-action="open-directory" class="skillquick-secondary-button rounded-xl px-3 py-2 text-sm">打开目录</button>
       </div>
     </div>
 
-    <div class="skillquick-settings-actions mt-4 grid grid-cols-[1fr_1.7fr] gap-2 border-t border-white/10 pt-3">
-      <button type="button" data-action="close-settings" class="skillquick-secondary-button rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/15">
+    <div class="skillquick-settings-actions mt-4 grid grid-cols-[1fr_1.7fr] gap-2 border-t pt-3">
+      <button type="button" data-action="close-settings" class="skillquick-secondary-button rounded-xl px-4 py-2.5 text-sm font-semibold">
         取消
       </button>
-      <button type="button" data-action="save-settings" class="skillquick-save-button rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400">
+      <button type="button" data-action="save-settings" class="skillquick-save-button rounded-xl px-4 py-2.5 text-sm font-semibold">
         保存设置
       </button>
     </div>
@@ -654,8 +700,8 @@ function showToast(text: string, type: ToastType, duration = 1500) {
   window.clearTimeout(toastTimer);
   toastBox.textContent = text;
   toastBox.className = [
-    'absolute left-1/2 top-4 z-40 flex max-w-[520px] -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2 text-sm shadow-2xl',
-    type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white',
+    'skillquick-toast absolute left-1/2 top-4 z-40 flex max-w-[560px] -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2 text-sm',
+    type === 'success' ? 'is-success' : 'is-error',
   ].join(' ');
   toastTimer = window.setTimeout(() => {
     toastBox.classList.add('hidden');
