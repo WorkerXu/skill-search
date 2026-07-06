@@ -31,9 +31,9 @@ fn get_or_create_search_window(app: &AppHandle) -> Result<WebviewWindow, String>
         WebviewUrl::App("index.html".into()),
     )
     .title("SkillQuick")
-    .inner_size(660.0, 500.0)
-    .min_inner_size(660.0, 500.0)
-    .max_inner_size(660.0, 500.0)
+    .inner_size(760.0, 540.0)
+    .min_inner_size(760.0, 540.0)
+    .max_inner_size(760.0, 540.0)
     .resizable(false)
     .decorations(false)
     .transparent(true)

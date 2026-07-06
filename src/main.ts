@@ -25,10 +25,19 @@ interface SkillResult {
   globalUsageCount: number;
 }
 
+interface SkillPreset {
+  id: string;
+  name: string;
+  icon: string;
+  skillCount: number;
+}
+
 interface SearchResponse {
   results: SkillResult[];
   totalSkills: number;
+  allSkillCount: number;
   recentQueries: string[];
+  presets: SkillPreset[];
 }
 
 interface BootstrapState extends SearchResponse {
@@ -39,6 +48,9 @@ interface AppState {
   config: AppConfig | null;
   settingsDraft: AppConfig | null;
   totalSkills: number;
+  allSkillCount: number;
+  presets: SkillPreset[];
+  selectedPresetId: string | null;
   recentQueries: string[];
   results: SkillResult[];
   query: string;
@@ -47,12 +59,16 @@ interface AppState {
   error: string | null;
   searchRequestId: number;
   copiedPath: string | null;
+  presetMenuOpen: boolean;
 }
 
 const state: AppState = {
   config: null,
   settingsDraft: null,
   totalSkills: 0,
+  allSkillCount: 0,
+  presets: [],
+  selectedPresetId: null,
   recentQueries: [],
   results: [],
   query: '',
@@ -61,6 +77,7 @@ const state: AppState = {
   error: null,
   searchRequestId: 0,
   copiedPath: null,
+  presetMenuOpen: false,
 };
 
 const appWindow = getCurrentWindow();
@@ -70,29 +87,41 @@ if (!root) {
 }
 
 root.innerHTML = `
-  <main id="appShell" data-tauri-drag-region="deep" class="skillquick-shell relative flex h-full select-none flex-col overflow-hidden rounded-[24px] border p-3">
+  <main id="appShell" data-tauri-drag-region="deep" class="skillquick-shell relative flex h-full select-none flex-col overflow-hidden rounded-[24px] border p-4">
     <div id="toast" class="skillquick-toast pointer-events-none absolute left-1/2 top-4 z-40 hidden max-w-[560px] -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2 text-sm"></div>
     <section id="settingsPanel" class="skillquick-settings-panel absolute inset-0 z-30 hidden p-5"></section>
 
-    <div class="skillquick-search-box flex h-[52px] items-center gap-3 rounded-2xl px-4">
-      <svg class="skillquick-search-icon h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <div class="skillquick-search-box flex h-[58px] items-center gap-3 rounded-2xl px-5">
+      <button id="presetButton" type="button" class="skillquick-preset-button hidden shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5" aria-haspopup="listbox" aria-expanded="false">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M9.5 7.5V6.2c0-.66.54-1.2 1.2-1.2h2.6c.66 0 1.2.54 1.2 1.2v1.3M5.5 8h13A2.5 2.5 0 0 1 21 10.5v6A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-6A2.5 2.5 0 0 1 5.5 8Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3 12.5h18M9.5 13.5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+        <span id="presetButtonText" class="max-w-[260px] truncate">全部技能</span>
+        <svg class="skillquick-preset-chevron h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="m7 10 5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div id="presetDivider" class="skillquick-search-divider hidden h-7 w-px shrink-0"></div>
+      <svg class="skillquick-search-icon h-[19px] w-[19px] shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="m21 21-4.35-4.35m2.35-5.15a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <input
         id="searchInput"
-        class="skillquick-search-input min-w-0 flex-1 bg-transparent text-[18px] font-semibold outline-none"
+        class="skillquick-search-input min-w-0 flex-1 bg-transparent text-[17px] font-semibold outline-none"
         autocomplete="off"
         spellcheck="false"
         placeholder="搜索技能名称或描述..."
       />
+      <div id="presetMenu" class="skillquick-preset-menu absolute left-5 top-[calc(100%+10px)] z-50 hidden w-[360px] rounded-2xl border p-2" role="listbox"></div>
     </div>
 
     <div id="errorBox" class="skillquick-error mt-3 hidden rounded-xl px-3 py-2 text-sm"></div>
-    <div id="recentRow" class="skillquick-recent-row mt-3 hidden items-center gap-2 overflow-hidden"></div>
-    <div id="listHeader" class="skillquick-list-header mb-2 mt-4 flex items-center gap-3 px-1 text-xs font-semibold uppercase tracking-[0.18em]"></div>
+    <div id="recentRow" class="skillquick-recent-row mt-4 hidden items-center gap-3 overflow-hidden px-1"></div>
+    <div id="listHeader" class="skillquick-list-header mb-3 mt-5 flex items-center gap-3 px-1 text-xs font-semibold uppercase tracking-[0.18em]"></div>
     <div id="resultsList" class="skillquick-results min-h-0 flex-1 overflow-y-auto pr-1"></div>
 
-    <footer class="skillquick-footer mt-3 flex h-10 items-center justify-between gap-3 border-t px-1 pt-3 text-xs">
+    <footer class="skillquick-footer mt-4 flex h-10 items-center justify-between gap-3 border-t px-1 pt-3 text-xs">
       <span id="totalSkills" class="skillquick-footer-count">共 0 个技能</span>
       <span id="shortcutText" class="skillquick-shortcut ml-auto"></span>
       <button id="settingsButton" type="button" class="skillquick-footer-button flex items-center gap-1.5 rounded-xl px-2.5 py-1.5" aria-label="打开设置">
@@ -111,6 +140,10 @@ const toastBox = getElement<HTMLDivElement>('toast');
 const settingsPanel = getElement<HTMLElement>('settingsPanel');
 const appShell = getElement<HTMLElement>('appShell');
 const errorBox = getElement<HTMLDivElement>('errorBox');
+const presetButton = getElement<HTMLButtonElement>('presetButton');
+const presetButtonText = getElement<HTMLSpanElement>('presetButtonText');
+const presetDivider = getElement<HTMLDivElement>('presetDivider');
+const presetMenu = getElement<HTMLDivElement>('presetMenu');
 const recentRow = getElement<HTMLDivElement>('recentRow');
 const listHeader = getElement<HTMLDivElement>('listHeader');
 const resultsList = getElement<HTMLDivElement>('resultsList');
@@ -127,9 +160,13 @@ let dragCandidate: { x: number; y: number; target: HTMLElement } | null = null;
 let suppressNextClick = false;
 
 appShell.addEventListener('mousedown', (event) => {
+  const target = event.target as HTMLElement;
+  if (!target.closest('#presetButton, #presetMenu')) {
+    closePresetMenu();
+  }
+
   if (event.button !== 0 || !canStartWindowDrag(event.target)) return;
 
-  const target = event.target as HTMLElement;
   if (target.closest('[data-skill-index]')) {
     dragCandidate = { x: event.clientX, y: event.clientY, target };
     return;
@@ -175,6 +212,10 @@ searchInput.addEventListener('input', () => {
 searchInput.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     event.preventDefault();
+    if (state.presetMenuOpen) {
+      closePresetMenu();
+      return;
+    }
     void hideAndReset();
     return;
   }
@@ -206,6 +247,19 @@ settingsButton.addEventListener('click', () => {
   openSettings();
 });
 
+presetButton.addEventListener('click', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  togglePresetMenu();
+});
+
+presetMenu.addEventListener('click', (event) => {
+  const item = (event.target as HTMLElement).closest<HTMLElement>('[data-preset-id]');
+  if (!item) return;
+  const presetId = item.dataset.presetId === '__all__' ? null : item.dataset.presetId ?? null;
+  void setSelectedPreset(presetId);
+});
+
 recentRow.addEventListener('click', (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-query]');
   if (!button) return;
@@ -229,6 +283,20 @@ resultsList.addEventListener('click', (event) => {
   const skill = state.results[Number(item.dataset.skillIndex ?? -1)];
   if (skill) {
     void selectSkill(skill);
+  }
+});
+
+window.addEventListener('keydown', (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault();
+    togglePresetMenu();
+    return;
+  }
+
+  if (state.presetMenuOpen && event.key === 'Escape') {
+    event.preventDefault();
+    closePresetMenu();
+    searchInput.focus();
   }
 });
 
@@ -305,7 +373,10 @@ async function performSearch() {
   const requestId = ++state.searchRequestId;
   const query = state.query;
   try {
-    const response = await invoke<SearchResponse>('search_skills', { query });
+    const response = await invoke<SearchResponse>('search_skills', {
+      query,
+      presetId: state.selectedPresetId,
+    });
     if (requestId !== state.searchRequestId) return;
     applySearchResponse(response);
     state.error = null;
@@ -404,7 +475,7 @@ async function rescanSkills(showSuccess = true) {
   try {
     const response = await invoke<SearchResponse>('rescan');
     applySearchResponse(response);
-    if (state.query) {
+    if (state.query || state.selectedPresetId) {
       await performSearch();
     }
     if (showSuccess) {
@@ -462,20 +533,94 @@ function updateSettingsDraft(target: EventTarget | null) {
 function applyBootstrap(boot: BootstrapState) {
   state.config = boot.config;
   state.totalSkills = boot.totalSkills;
+  state.allSkillCount = boot.allSkillCount;
+  state.presets = boot.presets;
+  ensureSelectedPreset();
   state.recentQueries = boot.recentQueries;
   state.results = boot.results;
   state.selectedIndex = 0;
   state.error = null;
   applyTheme(boot.config);
   renderAll();
+  if (state.selectedPresetId) {
+    void performSearch();
+  }
 }
 
 function applySearchResponse(response: SearchResponse) {
   state.totalSkills = response.totalSkills;
+  state.allSkillCount = response.allSkillCount;
+  state.presets = response.presets;
+  ensureSelectedPreset();
   state.recentQueries = response.recentQueries;
   state.results = response.results;
   state.selectedIndex = Math.min(state.selectedIndex, Math.max(0, response.results.length - 1));
   renderAll();
+}
+
+async function setSelectedPreset(presetId: string | null) {
+  state.selectedPresetId = presetId;
+  state.selectedIndex = 0;
+  state.presetMenuOpen = false;
+  persistSelectedPreset();
+  renderAll();
+  await performSearch();
+  searchInput.focus();
+}
+
+function ensureSelectedPreset() {
+  if (state.presets.length === 0) {
+    state.selectedPresetId = null;
+    return;
+  }
+
+  if (state.selectedPresetId && hasPreset(state.selectedPresetId)) {
+    return;
+  }
+
+  const savedPresetId = window.localStorage.getItem('skillquick:selectedPresetId');
+  if (savedPresetId === '__all__') {
+    state.selectedPresetId = null;
+    return;
+  }
+  if (savedPresetId && hasPreset(savedPresetId)) {
+    state.selectedPresetId = savedPresetId;
+    return;
+  }
+
+  state.selectedPresetId = [...state.presets]
+    .sort((a, b) => b.skillCount - a.skillCount || a.name.localeCompare(b.name))
+    [0]?.id ?? null;
+  persistSelectedPreset();
+}
+
+function hasPreset(presetId: string) {
+  return state.presets.some((preset) => preset.id === presetId);
+}
+
+function persistSelectedPreset() {
+  if (state.selectedPresetId) {
+    window.localStorage.setItem('skillquick:selectedPresetId', state.selectedPresetId);
+  } else {
+    window.localStorage.setItem('skillquick:selectedPresetId', '__all__');
+  }
+}
+
+function getSelectedPreset() {
+  if (!state.selectedPresetId) return null;
+  return state.presets.find((preset) => preset.id === state.selectedPresetId) ?? null;
+}
+
+function togglePresetMenu() {
+  if (state.presets.length === 0) return;
+  state.presetMenuOpen = !state.presetMenuOpen;
+  renderPresetControl();
+}
+
+function closePresetMenu() {
+  if (!state.presetMenuOpen) return;
+  state.presetMenuOpen = false;
+  renderPresetControl();
 }
 
 function normalizeConfig(config: AppConfig): AppConfig {
@@ -506,6 +651,7 @@ function renderLoading() {
 function renderAll() {
   searchInput.value = state.query;
   renderError();
+  renderPresetControl();
   renderRecentQueries();
   renderHeader();
   renderResults();
@@ -525,17 +671,91 @@ function renderError() {
   errorBox.classList.remove('hidden');
 }
 
+function renderPresetControl() {
+  if (state.presets.length === 0) {
+    presetButton.classList.add('hidden');
+    presetButton.classList.remove('flex');
+    presetDivider.classList.add('hidden');
+    presetMenu.classList.add('hidden');
+    return;
+  }
+
+  const preset = getSelectedPreset();
+  const label = preset
+    ? `${preset.name} · ${preset.skillCount}`
+    : `全部技能 · ${state.allSkillCount}`;
+  presetButtonText.textContent = label;
+  presetButton.classList.remove('hidden');
+  presetButton.classList.add('flex');
+  presetButton.classList.toggle('is-active', Boolean(preset));
+  presetButton.setAttribute('aria-expanded', String(state.presetMenuOpen));
+  presetDivider.classList.remove('hidden');
+
+  if (!state.presetMenuOpen) {
+    presetMenu.classList.add('hidden');
+    presetMenu.innerHTML = '';
+    return;
+  }
+
+  presetMenu.classList.remove('hidden');
+  presetMenu.innerHTML = `
+    ${renderPresetMenuItem(null, '全部技能', state.allSkillCount, 'layers')}
+    <div class="skillquick-preset-menu-divider my-1"></div>
+    ${state.presets.map((item) => renderPresetMenuItem(item.id, item.name, item.skillCount, item.icon)).join('')}
+  `;
+}
+
+function renderPresetMenuItem(
+  presetId: string | null,
+  name: string,
+  skillCount: number,
+  icon: string,
+) {
+  const active = presetId === state.selectedPresetId || (!presetId && !state.selectedPresetId);
+  return `
+    <button type="button" data-preset-id="${escapeAttr(presetId ?? '__all__')}" class="skillquick-preset-menu-item ${active ? 'is-active' : ''} flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left">
+      <span class="skillquick-preset-menu-icon">${renderPresetIcon(icon)}</span>
+      <span class="min-w-0 flex-1 truncate">${escapeHtml(name)}</span>
+      <span class="skillquick-preset-count">${skillCount}</span>
+    </button>
+  `;
+}
+
+function renderPresetIcon(icon: string) {
+  if (icon === 'briefcase') {
+    return `
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M9.5 7.5V6.2c0-.66.54-1.2 1.2-1.2h2.6c.66 0 1.2.54 1.2 1.2v1.3M5.5 8h13A2.5 2.5 0 0 1 21 10.5v6A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-6A2.5 2.5 0 0 1 5.5 8Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    `;
+  }
+
+  return `
+    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 7.5 12 3l8 4.5-8 4.5L4 7.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+      <path d="m4 12 8 4.5 8-4.5M4 16.5 12 21l8-4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `;
+}
+
 function renderRecentQueries() {
   if (state.query.trim() || state.recentQueries.length === 0) {
     recentRow.classList.add('hidden');
+    resultsList.classList.remove('has-recent-searches');
     recentRow.innerHTML = '';
     return;
   }
 
+  resultsList.classList.add('has-recent-searches');
   recentRow.classList.remove('hidden');
   recentRow.classList.add('flex');
   recentRow.innerHTML = `
-    <span class="shrink-0 text-xs font-medium">最近搜索</span>
+    <span class="skillquick-recent-label shrink-0 text-xs font-medium">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 8v4l2.5 1.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      最近搜索
+    </span>
     ${state.recentQueries.slice(0, 6).map((query) => `
       <button type="button" data-query="${escapeAttr(query)}" class="skillquick-query-chip rounded-full px-2.5 py-1 text-xs transition duration-150">
         ${escapeHtml(query)}
@@ -545,9 +765,13 @@ function renderRecentQueries() {
 }
 
 function renderHeader() {
-  listHeader.innerHTML = state.query.trim()
-    ? `<span class="skillquick-section-icon" aria-hidden="true">⌁</span><span>搜索结果</span><span class="skillquick-section-line"></span>`
-    : `<span class="skillquick-section-icon" aria-hidden="true">🔥</span><span>热门技能</span><span class="skillquick-section-line"></span>`;
+  if (!state.query.trim()) {
+    listHeader.classList.add('hidden');
+    listHeader.innerHTML = '';
+    return;
+  }
+  listHeader.classList.remove('hidden');
+  listHeader.innerHTML = `<span class="skillquick-section-icon" aria-hidden="true">⌁</span><span>搜索结果</span><span class="skillquick-section-line"></span>`;
 }
 
 function renderResults() {
@@ -602,26 +826,19 @@ function renderSkillItem(skill: SkillResult, index: number) {
 }
 
 function renderFooter() {
-  totalSkills.textContent = `共 ${state.totalSkills} 个技能`;
-  shortcutText.innerHTML = renderShortcutKeys(state.config?.shortcut ?? 'CommandOrControl+Shift+S');
+  const preset = getSelectedPreset();
+  const label = preset ? preset.name : '全部技能';
+  const count = preset ? preset.skillCount : state.allSkillCount;
+  totalSkills.innerHTML = `Preset: <span>${escapeHtml(label)}</span> · ${count} 个技能`;
+  shortcutText.innerHTML = renderPresetShortcut();
 }
 
-function renderShortcutKeys(shortcut: string) {
-  const keys = shortcut
-    .split('+')
-    .map((key) => key.trim())
-    .filter(Boolean)
-    .map((key) => key
-      .replace(/^CommandOrControl$/i, '⌘')
-      .replace(/^Command$/i, '⌘')
-      .replace(/^Control$/i, '⌃')
-      .replace(/^Option$/i, '⌥')
-      .replace(/^Alt$/i, '⌥')
-      .replace(/^Shift$/i, '⇧'));
-
+function renderPresetShortcut() {
   return [
-    '<span class="skillquick-shortcut-label">快捷键</span>',
-    ...keys.map((key) => `<kbd>${escapeHtml(key)}</kbd>`),
+    '<kbd>⌘</kbd>',
+    '<kbd>K</kbd>',
+    '<span class="skillquick-shortcut-label">切换 Preset</span>',
+    '<span class="skillquick-footer-separator"></span>',
   ].join('');
 }
 
@@ -783,6 +1000,9 @@ function canStartWindowDrag(target: EventTarget | null) {
     'a',
     '[data-action]',
     '[data-query]',
+    '[data-preset-id]',
+    '#presetButton',
+    '#presetMenu',
     '#settingsButton',
   ].join(','));
 }

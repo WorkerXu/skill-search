@@ -1,4 +1,4 @@
-use crate::{skill_parser, window};
+use crate::{presets, skill_parser, window};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -58,7 +58,9 @@ struct PersistedState {
 pub struct SearchResponse {
     pub results: Vec<skill_parser::SkillResult>,
     pub total_skills: usize,
+    pub all_skill_count: usize,
     pub recent_queries: Vec<String>,
+    pub presets: Vec<presets::PresetSummary>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -66,8 +68,10 @@ pub struct SearchResponse {
 pub struct BootstrapState {
     pub config: AppConfig,
     pub total_skills: usize,
+    pub all_skill_count: usize,
     pub recent_queries: Vec<String>,
     pub results: Vec<skill_parser::SkillResult>,
+    pub presets: Vec<presets::PresetSummary>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -85,6 +89,7 @@ pub struct AppState {
     pub config: Mutex<AppConfig>,
     pub history: Mutex<UsageHistory>,
     pub skills: Mutex<Vec<skill_parser::SkillMeta>>,
+    pub presets: Mutex<Vec<presets::PresetMeta>>,
     pub storage_path: Mutex<Option<PathBuf>>,
 }
 
@@ -92,12 +97,14 @@ pub struct AppState {
 pub fn bootstrap(app: AppHandle, state: State<'_, AppState>) -> Result<BootstrapState, String> {
     initialize_state(&app, &state)?;
     let config = state.config.lock().expect("config lock poisoned").clone();
-    let response = search_with_state(&state, "")?;
+    let response = search_with_state(&state, "", None)?;
     Ok(BootstrapState {
         config,
         total_skills: response.total_skills,
+        all_skill_count: response.all_skill_count,
         recent_queries: response.recent_queries,
         results: response.results,
+        presets: response.presets,
     })
 }
 
@@ -107,8 +114,12 @@ pub fn resolve_default_skill_dir() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn search_skills(state: State<'_, AppState>, query: String) -> Result<SearchResponse, String> {
-    search_with_state(&state, &query)
+pub fn search_skills(
+    state: State<'_, AppState>,
+    query: String,
+    preset_id: Option<String>,
+) -> Result<SearchResponse, String> {
+    search_with_state(&state, &query, preset_id.as_deref())
 }
 
 #[tauri::command]
@@ -147,19 +158,23 @@ pub fn update_config(
     next_config.theme = "dark".to_string();
 
     let skills = skill_parser::scan_skills(&next_config.skill_dir)?;
+    let presets = presets::load_presets();
     start_watcher_internal(&app, &state, &next_config.skill_dir)?;
     register_shortcut(&app, &state, &next_config.shortcut)?;
 
     *state.skills.lock().expect("skills lock poisoned") = skills;
+    *state.presets.lock().expect("presets lock poisoned") = presets;
     *state.config.lock().expect("config lock poisoned") = next_config.clone();
     persist_state(&state)?;
 
-    let response = search_with_state(&state, "")?;
+    let response = search_with_state(&state, "", None)?;
     Ok(BootstrapState {
         config: next_config,
         total_skills: response.total_skills,
+        all_skill_count: response.all_skill_count,
         recent_queries: response.recent_queries,
         results: response.results,
+        presets: response.presets,
     })
 }
 
@@ -167,9 +182,11 @@ pub fn update_config(
 pub fn rescan(app: AppHandle, state: State<'_, AppState>) -> Result<SearchResponse, String> {
     let config = state.config.lock().expect("config lock poisoned").clone();
     let skills = skill_parser::scan_skills(&config.skill_dir)?;
+    let presets = presets::load_presets();
     *state.skills.lock().expect("skills lock poisoned") = skills;
+    *state.presets.lock().expect("presets lock poisoned") = presets;
     start_watcher_internal(&app, &state, &config.skill_dir)?;
-    search_with_state(&state, "")
+    search_with_state(&state, "", None)
 }
 
 #[tauri::command]
@@ -253,26 +270,38 @@ pub fn initialize_state(app: &AppHandle, state: &State<'_, AppState>) -> Result<
     prune_history(&mut persisted.history);
 
     let skills = skill_parser::scan_skills(&persisted.config.skill_dir)?;
+    let presets = presets::load_presets();
     start_watcher_internal(app, state, &persisted.config.skill_dir)?;
     register_shortcut(app, state, &persisted.config.shortcut)?;
 
     *state.config.lock().expect("config lock poisoned") = persisted.config;
     *state.history.lock().expect("history lock poisoned") = persisted.history;
     *state.skills.lock().expect("skills lock poisoned") = skills;
+    *state.presets.lock().expect("presets lock poisoned") = presets;
     persist_state(state)?;
     *state.initialized.lock().expect("initialized lock poisoned") = true;
     Ok(())
 }
 
-fn search_with_state(state: &State<'_, AppState>, query: &str) -> Result<SearchResponse, String> {
+fn search_with_state(
+    state: &State<'_, AppState>,
+    query: &str,
+    preset_id: Option<&str>,
+) -> Result<SearchResponse, String> {
     let config = state.config.lock().expect("config lock poisoned").clone();
     let history = state.history.lock().expect("history lock poisoned").clone();
     let skills = state.skills.lock().expect("skills lock poisoned");
-    let results = rank_skills(&skills, &history, &config, query);
+    let presets = state.presets.lock().expect("presets lock poisoned");
+    let active_preset = preset_id
+        .filter(|id| !id.trim().is_empty())
+        .and_then(|id| presets.iter().find(|preset| preset.id == id));
+    let results = rank_skills(&skills, &history, &config, query, active_preset);
     Ok(SearchResponse {
         results,
-        total_skills: skills.len(),
+        total_skills: scoped_skill_count(&skills, active_preset),
+        all_skill_count: skills.len(),
         recent_queries: history.recent_queries,
+        presets: preset_summaries(&presets, &skills),
     })
 }
 
@@ -281,6 +310,7 @@ fn rank_skills(
     history: &UsageHistory,
     config: &AppConfig,
     query: &str,
+    active_preset: Option<&presets::PresetMeta>,
 ) -> Vec<skill_parser::SkillResult> {
     let normalized_query = normalize_query(query);
     let query_usage = history
@@ -293,6 +323,11 @@ fn rank_skills(
     let mut ranked: Vec<_> = skills
         .iter()
         .filter_map(|skill| {
+            if let Some(preset) = active_preset {
+                if !preset.skill_folder_paths.contains(skill.folder_path.as_ref()) {
+                    return None;
+                }
+            }
             let (fuzzy_score, match_rank) =
                 score_skill(skill, &normalized_query, config.fuzzy_search)?;
             let path = skill.skill_md_path.as_ref();
@@ -324,6 +359,43 @@ fn rank_skills(
                 global_usage_count: global_count,
             },
         )
+        .collect()
+}
+
+fn scoped_skill_count(
+    skills: &[skill_parser::SkillMeta],
+    active_preset: Option<&presets::PresetMeta>,
+) -> usize {
+    match active_preset {
+        Some(preset) => skills
+            .iter()
+            .filter(|skill| preset.skill_folder_paths.contains(skill.folder_path.as_ref()))
+            .count(),
+        None => skills.len(),
+    }
+}
+
+fn preset_summaries(
+    presets: &[presets::PresetMeta],
+    skills: &[skill_parser::SkillMeta],
+) -> Vec<presets::PresetSummary> {
+    presets
+        .iter()
+        .filter_map(|preset| {
+            let skill_count = skills
+                .iter()
+                .filter(|skill| preset.skill_folder_paths.contains(skill.folder_path.as_ref()))
+                .count();
+            if skill_count == 0 {
+                return None;
+            }
+            Some(presets::PresetSummary {
+                id: preset.id.clone(),
+                name: preset.name.clone(),
+                icon: preset.icon.clone(),
+                skill_count,
+            })
+        })
         .collect()
 }
 
